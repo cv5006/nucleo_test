@@ -26,8 +26,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "uartif.h"
-#include "i2c.h"
+
+#include "imu.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -199,29 +199,23 @@ void StartLED_Task(void *argument)
 * @brief Function implementing the IMU_Task thread.
 * @param argument: Not used
 * @retval None
+*
 */
+
+
 /* USER CODE END Header_StartIMU_Task */
-#define IMU_ADDR 0b11010000
-HAL_StatusTypeDef imu_status;
-uint8_t rxbuff[6];
-int16_t acc[3];
 void StartIMU_Task(void *argument)
 {
   /* USER CODE BEGIN StartIMU_Task */
-	while(HAL_I2C_IsDeviceReady(&hi2c1, IMU_ADDR, 1, 1000) != HAL_OK){ osDelay(10);	}
-	imu_status = HAL_I2C_Mem_Write_DMA(&hi2c1, IMU_ADDR, 0x6B, I2C_MEMADD_SIZE_8BIT, &((uint8_t){0x80}), 1);
-	osDelay(10);
-	imu_status = HAL_I2C_Mem_Write_DMA(&hi2c1, IMU_ADDR, 0x6B, I2C_MEMADD_SIZE_8BIT, &((uint8_t){0x01}), 1);
-	osDelay(10);
+  IMU_WaitForReady(&himu);
+  IMU_Init(&himu);
 
   /* Infinite loop */
   for(;;)
   {
-	imu_status = HAL_I2C_Mem_Read_DMA(&hi2c1, IMU_ADDR, 0x3B, I2C_MEMADD_SIZE_8BIT, rxbuff, 6);
-	for(int i=0; i<3; i++){
-		acc[i] = rxbuff[2*i] << 8 | rxbuff[2*i+1];
-	}
-    osDelay(10);
+    IMU_ReadData(&himu);
+    IMU_ReadBuffData(&himu);
+    osDelay(1);
   }
   /* USER CODE END StartIMU_Task */
 }
