@@ -77,6 +77,16 @@ const osThreadAttr_t IMU_Task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow2,
 };
+/* Definitions for I2C1Mutex */
+osMutexId_t I2C1MutexHandle;
+const osMutexAttr_t I2C1Mutex_attributes = {
+  .name = "I2C1Mutex"
+};
+/* Definitions for I2C1BinSem */
+osSemaphoreId_t I2C1BinSemHandle;
+const osSemaphoreAttr_t I2C1BinSem_attributes = {
+  .name = "I2C1BinSem"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -99,10 +109,17 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
+  /* Create the mutex(es) */
+  /* creation of I2C1Mutex */
+  I2C1MutexHandle = osMutexNew(&I2C1Mutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of I2C1BinSem */
+  I2C1BinSemHandle = osSemaphoreNew(1, 1, &I2C1BinSem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -167,7 +184,7 @@ void StartDefaultTask(void *argument)
 void StartUART_Task(void *argument)
 {
   /* USER CODE BEGIN StartUART_Task */
-  /* Infinite loop */
+    /* Infinite loop */
   for(;;)
   {
     osDelay(1);
@@ -203,18 +220,21 @@ void StartLED_Task(void *argument)
 */
 
 
+
 /* USER CODE END Header_StartIMU_Task */
 void StartIMU_Task(void *argument)
 {
   /* USER CODE BEGIN StartIMU_Task */
-  IMU_WaitForReady(&himu);
-  IMU_Init(&himu);
+  IMU_SetBinSem(I2C1BinSemHandle);
+
+  IMU_WaitForReady();
+  IMU_Init();
 
   /* Infinite loop */
   for(;;)
   {
-    IMU_ReadData(&himu);
-    IMU_ReadBuffData(&himu);
+    IMU_ReadData();
+    IMU_ReadBuffData();
     osDelay(1);
   }
   /* USER CODE END StartIMU_Task */

@@ -47,6 +47,8 @@
 
 typedef struct{
     HAL_StatusTypeDef i2c_status;
+    osSemaphoreId_t i2c1_binsem;
+    osMutexId_t i2c1_mutex;
 
     uint8_t imu_id;
 
@@ -69,14 +71,20 @@ extern IMU_Handle himu;
  |_| \_,_|_||_\__|\__|_\___/_||_/__/
                                     
 */
+void IMU_SetBinSem(osSemaphoreId_t i2c_binsem);
 
-void IMU_WaitForReady(IMU_Handle* himu);
+void IMU_WaitForReady();
 
-void IMU_Init(IMU_Handle* himu);
-void IMU_ReadData(IMU_Handle* himu);
-void IMU_ReadBuffData(IMU_Handle* himu);
+void IMU_Init();
+void IMU_ReadData();
+void IMU_ReadBuffData();
 
-// void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c);
+void IMU_ReadData_AccGyr();
+void IMU_ReadData_Mag();
+
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c);
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c);
 
 
 #endif /* INC_IMU_H_ */
