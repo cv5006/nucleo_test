@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "hal_wrapper.h"
 #include "imu.h"
 /* USER CODE END Includes */
 
@@ -123,6 +123,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  HW_I2C_InitChannel(&i2c_ch1, &hi2c1, I2C1BinSemHandle);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -152,6 +153,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
+
   /* USER CODE END RTOS_EVENTS */
 
 }
@@ -219,16 +221,13 @@ void StartLED_Task(void *argument)
 *
 */
 
-
-
 /* USER CODE END Header_StartIMU_Task */
 void StartIMU_Task(void *argument)
 {
   /* USER CODE BEGIN StartIMU_Task */
-  IMU_SetBinSem(I2C1BinSemHandle);
-
+  IMU_SetI2C_Channel(&i2c_ch1);
   IMU_WaitForReady();
-  IMU_Init();
+  IMU_Configure();
 
   /* Infinite loop */
   for(;;)
