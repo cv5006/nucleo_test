@@ -64,6 +64,8 @@ void Error_Handler(void);
 #define MCO_GPIO_Port GPIOH
 #define RMII_MDC_Pin GPIO_PIN_1
 #define RMII_MDC_GPIO_Port GPIOC
+#define NZR_Pin GPIO_PIN_0
+#define NZR_GPIO_Port GPIOA
 #define RMII_REF_CLK_Pin GPIO_PIN_1
 #define RMII_REF_CLK_GPIO_Port GPIOA
 #define RMII_MDIO_Pin GPIO_PIN_2
@@ -88,6 +90,8 @@ void Error_Handler(void);
 #define USB_FS_PWR_EN_GPIO_Port GPIOD
 #define USB_FS_OVCR_Pin GPIO_PIN_7
 #define USB_FS_OVCR_GPIO_Port GPIOG
+#define LED_WHITE_Pin GPIO_PIN_8
+#define LED_WHITE_GPIO_Port GPIOC
 #define USB_FS_VBUS_Pin GPIO_PIN_9
 #define USB_FS_VBUS_GPIO_Port GPIOA
 #define USB_FS_ID_Pin GPIO_PIN_10

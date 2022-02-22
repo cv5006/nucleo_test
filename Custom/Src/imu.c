@@ -11,7 +11,7 @@
 
 IMU_Handle himu;
 
-void IMU_SetI2C_Channel(HW_I2C_Channel* i2c_ch)
+void IMU_SetI2C_Channel(HW_I2C_Interface* i2c_ch)
 {
     himu.i2c_ch = i2c_ch;
 }
@@ -39,7 +39,7 @@ void IMU_ReadData()
     HW_I2C_RegisterRx(himu.i2c_ch, IMU_ADDR_MAG, 0x02, &st1, 1);
     if ((st1 & 0x11) == 0x01) { // ST2 must be read!
         HW_I2C_RegisterRx(himu.i2c_ch, IMU_ADDR_MAG, IMU_REG_MAG_DATA, himu.mag_buff, 7);
-    }
+    } 
 }
 
 void IMU_ReadBuffData()

@@ -26,7 +26,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "hal_wrapper.h"
 #include "imu.h"
 /* USER CODE END Includes */
 

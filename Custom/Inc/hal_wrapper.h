@@ -15,15 +15,15 @@ typedef struct{
     HAL_StatusTypeDef status;
     osSemaphoreId_t sem;
     I2C_HandleTypeDef* hal_handle;
-}HW_I2C_Channel;
+}HW_I2C_Interface;
 
-extern HW_I2C_Channel i2c_ch1;
+extern HW_I2C_Interface i2c_ch1;
 
-void HW_I2C_WaitForI2C_Ready(HW_I2C_Channel* i2c_ch, uint16_t dev_addr, uint32_t time_out);
+void HW_I2C_WaitForI2C_Ready(HW_I2C_Interface* i2c_ch, uint16_t dev_addr, uint32_t time_out);
 
-void HW_I2C_InitChannel(HW_I2C_Channel* i2c_ch, I2C_HandleTypeDef* hi2c, osSemaphoreId_t sem);
-void HW_I2C_RegisterRx(HW_I2C_Channel* i2c_ch, uint16_t dev_addr, uint16_t reg_addr, uint8_t* rx, uint16_t size);
-void HW_I2C_RegisterTx(HW_I2C_Channel* i2c_ch, uint16_t dev_addr, uint16_t reg_addr, uint8_t* tx, uint16_t size);
+void HW_I2C_InitChannel(HW_I2C_Interface* i2c_ch, I2C_HandleTypeDef* hi2c, osSemaphoreId_t sem);
+void HW_I2C_RegisterRx(HW_I2C_Interface* i2c_ch, uint16_t dev_addr, uint16_t reg_addr, uint8_t* rx, uint16_t size);
+void HW_I2C_RegisterTx(HW_I2C_Interface* i2c_ch, uint16_t dev_addr, uint16_t reg_addr, uint8_t* tx, uint16_t size);
 
 
 // void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c);

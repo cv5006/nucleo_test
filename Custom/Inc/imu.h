@@ -45,7 +45,7 @@
 */
 
 typedef struct{
-    HW_I2C_Channel* i2c_ch;
+	HW_I2C_Interface* i2c_ch;
     uint8_t imu_id;
 
     uint8_t acc_buff[6];
@@ -61,13 +61,24 @@ extern IMU_Handle himu;
 
 
 /*
+  ___      _    _ _      _     _            __             
+ | _ \_  _| |__| (_)__  (_)_ _| |_ ___ _ _ / _|__ _ __ ___ 
+ |  _/ || | '_ \ | / _| | | ' \  _/ -_) '_|  _/ _` / _/ -_)
+ |_|  \_,_|_.__/_|_\__| |_|_||_\__\___|_| |_| \__,_\__\___|
+                                                           
+*/
+void IMU_Init();
+void IMU_Run();
+
+
+/*
   ___             _   _             
  | __|  _ _ _  __| |_(_)___ _ _  ___
  | _| || | ' \/ _|  _| / _ \ ' \(_-<
  |_| \_,_|_||_\__|\__|_\___/_||_/__/
                                     
 */
-void IMU_SetI2C_Channel(HW_I2C_Channel* i2c_ch);
+void IMU_SetI2C_Channel(HW_I2C_Interface* i2c_ch);
 
 void IMU_WaitForReady();
 
@@ -75,8 +86,9 @@ void IMU_Configure();
 void IMU_ReadData();
 void IMU_ReadBuffData();
 
-void IMU_ReadData_AccGyr();
-void IMU_ReadData_Mag();
+void IMU_ReadDataAccGyr();
+void IMU_ReadDataMag();
 
+void IMU_PutMeInTimer();
 
 #endif /* INC_IMU_H_ */
