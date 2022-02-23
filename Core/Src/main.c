@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 //#include "menu.h"
 #include "string.h"
+#include "tftp_server.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,14 +78,15 @@ void print_ip_settings(u32_t *ip, u32_t *mask, u32_t *gw)
 	print_ip("Board IP: ", (ip_addr_t *)ip);
 	print_ip("Netmask : ", (ip_addr_t *)mask);
 	print_ip("Gateway : ", (ip_addr_t *)gw);
+	printf("\n");
 }
 
 
 void StartMsg()
 {
 	char buf[1024];
-	sprintf(buf, "STM32 ETHERNET TEST: Clk=%dMHz", (int)(HAL_RCC_GetHCLKFreq()/1000000));
-	printf("%s\n",buf);
+	sprintf(buf, "\n\nSTM32 ETHERNET TEST: Clk=%dMHz", (int)(HAL_RCC_GetHCLKFreq()/1000000));
+	printf("%s\n\n",buf);
 }
 /* USER CODE END PV */
 
@@ -97,7 +99,38 @@ static void MPU_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+char file[128];
+void* OpenCallback(const char* fname, const char* mode, u8_t write)
+{
+	printf("File name: %s\n", fname);
+	printf("Mode: %s\n", mode);
+	printf("Write?: %d\n", write);
 
+	strcpy(file, fname);
+	return (void*)file;
+}
+
+int ReadCallback(void* handle, void* buf, int bytes)
+{
+	printf("Read\n");
+	return 0;
+}
+
+int WriteCallback(void* handle, struct pbuf* p)
+{
+	char str[p->len+1];
+	memcpy(str, p->payload, p->len);
+	printf("%.*s", (int)p->len, str);
+	if (p->next == NULL) {
+		printf("\n");
+	}
+	return 0;
+}
+
+void CloseCallback(void* handle)
+{
+	printf("Close\n");
+}
 /* USER CODE END 0 */
 
 /**
@@ -145,6 +178,15 @@ int main(void)
 
   print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
 
+
+  struct tftp_context tftpctx = {
+		  OpenCallback,
+		  CloseCallback,
+		  ReadCallback,
+		  WriteCallback
+
+  };
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -152,6 +194,7 @@ int main(void)
   while (1)
   {
 	  MX_LWIP_Process();
+	  tftp_init(&tftpctx);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

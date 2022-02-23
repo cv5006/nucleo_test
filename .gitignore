@@ -8,6 +8,7 @@ Drivers/BSP/Components/lan8742/*
 # Middlewares
 Middlewares/Third_Party/*
 LWIP/*
+FATFS/*
 
 # Build files
 Debug/
