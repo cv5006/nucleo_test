@@ -46,11 +46,12 @@ MEMORY
 {
   ITCMRAM (xrw)    : ORIGIN = 0x00000000,   LENGTH = 64K
   DTCMRAM (xrw)    : ORIGIN = 0x20000000,   LENGTH = 128K
-  FLASH    (rx)    : ORIGIN = 0x08000000,   LENGTH = 1024K
+  FLASH    (rx)    : ORIGIN = 0x08000000,   LENGTH = 1024K 
   RAM_D1  (xrw)    : ORIGIN = 0x24000000,   LENGTH = 320K
   RAM_D2  (xrw)    : ORIGIN = 0x30000000,   LENGTH = 32K
   RAM_D3  (xrw)    : ORIGIN = 0x38000000,   LENGTH = 16K
 }
+
 
 /* Define output sections */
 SECTIONS
@@ -62,7 +63,13 @@ SECTIONS
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
-
+	
+  .version :
+  {
+  	. = ALIGN(1024);
+  	KEEP(*(.version))
+  	. = ALIGN(4);
+  } >FLASH
   /* The program code and other data goes into FLASH */
   .text :
   {
@@ -151,6 +158,20 @@ SECTIONS
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
   } >RAM_D1
+
+  /* ------------ Modification start ------------ */
+  .lwip_sec (NOLOAD) : {
+    . = ABSOLUTE(0x30000000);
+    *(.RxDecripSection) 
+    
+    . = ABSOLUTE(0x30000080);
+    *(.TxDecripSection)
+    
+    . = ABSOLUTE(0x30000100);
+    *(.RxArraySection) 
+  } >RAM_D2
+  /* ------------ Modification end ------------ */
+
 
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack :
