@@ -29,6 +29,7 @@
 //#include "menu.h"
 #include "string.h"
 #include "tftp_server.h"
+#include "flash_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,8 +45,9 @@
  * @param None
  * @retval None
  */
-
 extern struct netif gnetif;
+//typedef  void (*pFunction)(void);
+//pFunction JumpToApp;
 
 /* USER CODE END PTD */
 
@@ -61,76 +63,32 @@ extern struct netif gnetif;
 
 /* USER CODE BEGIN PV */
 
-PUTCHAR_PROTOTYPE{
-	if (ch == '\n') HAL_UART_Transmit(&huart3, (uint8_t*)"\r", 1, 0xFFFF);
-	HAL_UART_Transmit(&huart3, (uint8_t*)&ch, 1, 0xFFFF);
-	return ch;
-}
+PUTCHAR_PROTOTYPE;
 
-void print_ip(char *msg, ip_addr_t *ip)
-{
-	printf(msg);
-	printf("%d.%d.%d.%d\n", ip4_addr1(ip), ip4_addr2(ip), ip4_addr3(ip), ip4_addr4(ip));
-}
-
-void print_ip_settings(u32_t *ip, u32_t *mask, u32_t *gw)
-{
-	print_ip("Board IP: ", (ip_addr_t *)ip);
-	print_ip("Netmask : ", (ip_addr_t *)mask);
-	print_ip("Gateway : ", (ip_addr_t *)gw);
-	printf("\n");
-}
-
-
-void StartMsg()
-{
-	char buf[1024];
-	sprintf(buf, "\n\nSTM32 ETHERNET TEST: Clk=%dMHz", (int)(HAL_RCC_GetHCLKFreq()/1000000));
-	printf("%s\n\n",buf);
-}
+void print_ip(char *msg, ip_addr_t *ip);
+void print_ip_settings(u32_t *ip, u32_t *mask, u32_t *gw);
+void StartingMsg();
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
-
+#define APP_FW_ADDR ADDR_FLASH_SECTOR_1_BANK1
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char file[128];
-void* OpenCallback(const char* fname, const char* mode, u8_t write)
-{
-	printf("File name: %s\n", fname);
-	printf("Mode: %s\n", mode);
-	printf("Write?: %d\n", write);
+int flash_handle;
+struct FlashHandle {
+	uint32_t dest;
+	uint8_t is_erased;
+};
 
-	strcpy(file, fname);
-	return (void*)file;
-}
-
-int ReadCallback(void* handle, void* buf, int bytes)
-{
-	printf("Read\n");
-	return 0;
-}
-
-int WriteCallback(void* handle, struct pbuf* p)
-{
-	char str[p->len+1];
-	memcpy(str, p->payload, p->len);
-	printf("%.*s", (int)p->len, str);
-	if (p->next == NULL) {
-		printf("\n");
-	}
-	return 0;
-}
-
-void CloseCallback(void* handle)
-{
-	printf("Close\n");
-}
+void* OpenCallback(const char* fname, const char* mode, u8_t write);
+int ReadCallback(void* handle, void* buf, int bytes);
+int WriteCallback(void* handle, struct pbuf* p);
+void CloseCallback(void* handle);
 /* USER CODE END 0 */
 
 /**
@@ -157,14 +115,12 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -173,11 +129,16 @@ int main(void)
   MX_USB_OTG_HS_USB_Init();
   MX_LWIP_Init();
   /* USER CODE BEGIN 2 */
-
-  StartMsg();
-
-  print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
-
+  if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
+	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
+//      uint32_t JumpAddress = *(__IO uint32_t*) (APP_FW_ADDR + 4);
+//      JumpToApp = (pFunction) JumpAddress;
+//
+//	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
+//	  JumpToApp();
+  } else {
+	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
+  }
 
   struct tftp_context tftpctx = {
 		  OpenCallback,
@@ -186,15 +147,17 @@ int main(void)
 		  WriteCallback
 
   };
-
+  tftp_init(&tftpctx);
+  FLASH_If_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  StartingMsg();
+  print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
   while (1)
   {
 	  MX_LWIP_Process();
-	  tftp_init(&tftpctx);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -262,7 +225,81 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+PUTCHAR_PROTOTYPE{
+	if (ch == '\n') HAL_UART_Transmit(&huart3, (uint8_t*)"\r", 1, 0xFFFF);
+	HAL_UART_Transmit(&huart3, (uint8_t*)&ch, 1, 0xFFFF);
+	return ch;
+}
 
+void print_ip(char *msg, ip_addr_t *ip)
+{
+	printf(msg);
+	printf("%d.%d.%d.%d\n", ip4_addr1(ip), ip4_addr2(ip), ip4_addr3(ip), ip4_addr4(ip));
+}
+
+void print_ip_settings(u32_t *ip, u32_t *mask, u32_t *gw)
+{
+	print_ip("Board IP: ", (ip_addr_t *)ip);
+	print_ip("Netmask : ", (ip_addr_t *)mask);
+	print_ip("Gateway : ", (ip_addr_t *)gw);
+	printf("\n");
+}
+
+
+void StartingMsg()
+{
+	char buf[1024];
+	sprintf(buf, "\n\nSTM32 ETHERNET TEST: Clk=%dMHz", (int)(HAL_RCC_GetHCLKFreq()/1000000));
+	printf("%s\n\n",buf);
+}
+
+void* OpenCallback(const char* fname, const char* mode, u8_t write)
+{
+	printf("File name: %s\n", fname);
+
+	struct FlashHandle* fh = malloc(sizeof(struct FlashHandle));
+	fh->dest = APP_FW_ADDR;
+	fh->is_erased = 0;
+
+	return (void*)fh;
+}
+
+int ReadCallback(void* handle, void* buf, int bytes)
+{
+	printf("Read\n");
+	return 0;
+}
+
+int WriteCallback(void* handle, struct pbuf* p)
+{
+	struct FlashHandle* fh = (struct FlashHandle*)handle;
+	uint32_t res;
+	if (fh->is_erased == 0) {
+		printf("Erase start\n");
+		res = FLASH_If_Erase(APP_FW_ADDR);
+		printf("Erase result: %d\n", (int)res);
+		printf("Flash start\n");
+		fh->is_erased = 1;
+	}
+
+	printf("Flash %3dB @ %p: ", (int)p->len, (void*)fh->dest);
+	res = FLASH_If_Write(fh->dest, (uint32_t*)p->payload, p->len/sizeof(uint32_t));
+	if (res == FLASHIF_OK) {
+		printf("done\n");
+	} else {
+		printf("failed\n");
+	}
+	fh->dest += p->len;
+	return res;
+}
+
+void CloseCallback(void* handle)
+{
+	struct FlashHandle* fh = (struct FlashHandle*)handle;
+	free(fh);
+	printf("Close\n");
+
+}
 /* USER CODE END 4 */
 
 /* MPU Configuration */
@@ -323,6 +360,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
   while (1)
   {
   }
