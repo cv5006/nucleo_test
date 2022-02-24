@@ -46,9 +46,9 @@
  * @retval None
  */
 extern struct netif gnetif;
-//typedef  void (*pFunction)(void);
-//pFunction JumpToApp;
-
+typedef  void (*pFunction)(void);
+pFunction JumpToApp;
+uint32_t jump_addr;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -131,11 +131,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
   if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
 	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
-//      uint32_t JumpAddress = *(__IO uint32_t*) (APP_FW_ADDR + 4);
-//      JumpToApp = (pFunction) JumpAddress;
-//
-//	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
-//	  JumpToApp();
+	  jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
+      JumpToApp = (pFunction) jump_addr;
+
+	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
+	  JumpToApp();
   } else {
 	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
   }
