@@ -92,9 +92,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USB_OTG_HS_USB_Init();
   /* USER CODE BEGIN 2 */
-  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin)) {
-	  HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
-  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -103,7 +101,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 	  HAL_GPIO_TogglePin(GPIOB, LED_USER_Pin);
-	  HAL_Delay(100);
+	  HAL_Delay(30);
 
     /* USER CODE BEGIN 3 */
   }
