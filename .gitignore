@@ -4,8 +4,8 @@
 
 # Middlewares
 Middlewares/Third_Party/*
-
-*/LWIP/
+Drivers/BSP/
+LWIP/
 
 # Build files
 Debug/
