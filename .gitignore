@@ -10,6 +10,7 @@ Middlewares/Third_Party/*
 # Build files
 Debug/
 Release/
+Bin/
 
 # Others
 .metadata/
