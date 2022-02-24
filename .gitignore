@@ -13,6 +13,7 @@ FATFS/*
 # Build files
 Debug/
 Release/
+Bin/
 
 # Others
 .metadata/
