@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "lwip.h"
 #include "usart.h"
 #include "usb_otg.h"
@@ -49,10 +50,14 @@ extern struct netif gnetif;
 typedef  void (*pFunction)(void);
 pFunction JumpToApp;
 uint32_t jump_addr;
+uint32_t write_count = 0;
+uint32_t crc_compare;
+uint32_t file_length = 0;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -74,11 +79,16 @@ void StartingMsg();
 void SystemClock_Config(void);
 static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
-#define APP_FW_ADDR ADDR_FLASH_SECTOR_1_BANK1
+#define APP_FW_ADDR ADDR_FLASH_SECTOR_2_BANK1
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define config_sector (uint32_t)0x08020000
+int is_loaded = 0;
+uint32_t filelength = 0;
+uint32_t crc;
+
 int flash_handle;
 struct FlashHandle {
 	uint32_t dest;
@@ -89,6 +99,10 @@ void* OpenCallback(const char* fname, const char* mode, u8_t write);
 int ReadCallback(void* handle, void* buf, int bytes);
 int WriteCallback(void* handle, struct pbuf* p);
 void CloseCallback(void* handle);
+void CloseCallbackReset(void* handle);
+void BootLoader();
+int is_firstwrite = 1;
+
 /* USER CODE END 0 */
 
 /**
@@ -128,8 +142,12 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USB_OTG_HS_USB_Init();
   MX_LWIP_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-  if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
+  printf("\n");
+  printf("initial magic number : %d\n", *(uint32_t*)config_sector);
+  if ((HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) && (*(uint32_t *)config_sector == 12345678)) { // reboot without uploading
+	  printf("\nJumping to firmware area\n");
 	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
 	  jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
       JumpToApp = (pFunction) jump_addr;
@@ -137,27 +155,20 @@ int main(void)
 	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
 	  JumpToApp();
   } else {
+	  printf("loading bootloader\n");
 	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
+	  BootLoader(); // if block -> original code
+
   }
-
-  struct tftp_context tftpctx = {
-		  OpenCallback,
-		  CloseCallback,
-		  ReadCallback,
-		  WriteCallback
-
-  };
-  tftp_init(&tftpctx);
-  FLASH_If_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  StartingMsg();
-  print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
+//  StartingMsg();
+//  print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
   while (1)
   {
-	  MX_LWIP_Process();
+//	  MX_LWIP_Process();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -282,16 +293,32 @@ int WriteCallback(void* handle, struct pbuf* p)
 		fh->is_erased = 1;
 	}
 
-	printf("Flash %3dB @ %p: ", (int)p->len, (void*)fh->dest);
-	res = FLASH_If_Write(fh->dest, (uint32_t*)p->payload, p->len/sizeof(uint32_t));
-	if (res == FLASHIF_OK) {
-		printf("done\n");
-	} else {
-		printf("failed\n");
+	/* reading commuication packet */
+	if(is_firstwrite){
+		crc_compare = *(uint32_t *)p->payload;
+		printf("First Communication Packet arrived\n");
 	}
-	fh->dest += p->len;
+	else{
+		printf("Flash %3dB @ %p: ", (int)p->len, (void*)fh->dest);
+		res = FLASH_If_Write(fh->dest, (uint32_t*)p->payload, p->len/sizeof(uint32_t));
+		filelength = filelength + p->len;
+		if (res == FLASHIF_OK) {
+			printf("done\n");
+		} else {
+			printf("failed\n");
+		}
+	}
+
+	if(is_firstwrite){
+		is_firstwrite = 0;
+	}
+	else{
+		fh->dest += p->len;
+	}
 	return res;
+
 }
+
 
 void CloseCallback(void* handle)
 {
@@ -300,6 +327,83 @@ void CloseCallback(void* handle)
 	printf("Close\n");
 
 }
+
+void CloseCallbackReset(void* handle)
+{
+	struct FlashHandle* fh = (struct FlashHandle*)handle;
+	free(fh);
+	printf("Close\n");
+	is_loaded = 1;
+}
+
+void BootLoader() {
+	struct tftp_context tftpctx = {
+
+		  OpenCallback,
+		  CloseCallbackReset,
+		  ReadCallback,
+		  WriteCallback
+
+	};
+
+	/* initialize configuration sector */
+	HAL_FLASH_Unlock();
+	FLASH_If_Init();
+	uint32_t SectorError;
+	FLASH_EraseInitTypeDef pEraseInit;
+	pEraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
+	pEraseInit.Sector = FLASH_SECTOR_1;
+	pEraseInit.NbSectors = 1;
+	pEraseInit.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+	pEraseInit.Banks = FLASH_BANK_1;
+	if (HAL_FLASHEx_Erase(&pEraseInit, &SectorError) != HAL_OK) {
+	  /* Error occurred while sector erase */
+	  printf("Error!\n");
+	}
+	HAL_FLASH_Lock();
+
+
+	tftp_init(&tftpctx);
+	FLASH_If_Init();
+	StartingMsg();
+	print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
+	while (!is_loaded)
+	{
+	  MX_LWIP_Process();
+	}
+
+	/* crc check */
+	crc = HAL_CRC_Calculate(&hcrc, APP_FW_ADDR, filelength);
+	crc = ~crc;
+
+	printf("file length : %d\n", filelength);
+	printf("crc value : %x\n", crc);
+	printf("received crc value : %x\n", crc_compare);
+
+
+	if(crc == crc_compare){
+		HAL_Delay(1000);
+		printf("\n! received valid data !\n");
+		int *is_valid;
+		is_valid = malloc(sizeof(int));
+		*is_valid = 12345678;
+		FLASH_If_Init();
+		HAL_FLASH_Unlock();
+		FLASH_If_Init();
+		if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, (uint32_t)config_sector, (uint32_t)is_valid) != HAL_OK)
+			printf("Error!\n");
+		HAL_FLASH_Lock();
+		free(is_valid);
+		printf("magic number updated to : %d\n", *(uint32_t *)config_sector);
+	}
+	else{
+		HAL_Delay(1000);
+		printf("\n! received broken data !\n");
+	}
+	HAL_NVIC_SystemReset();
+}
+
+
 /* USER CODE END 4 */
 
 /* MPU Configuration */
@@ -384,4 +488,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
