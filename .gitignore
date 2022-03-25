@@ -1,0 +1,21 @@
+# CMSIS & HAL Drivers
+*/CMSIS/
+*/STM32H7xx_HAL_Driver/
+
+
+Drivers/BSP/Components/lan8742/*
+
+# Middlewares
+Middlewares/Third_Party/*
+LWIP/*
+FATFS/*
+
+# Build files
+Debug/
+Release/
+Bin/
+
+# Others
+.metadata/
+*.launch
+.vscode/
