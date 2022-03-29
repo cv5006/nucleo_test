@@ -53,6 +53,9 @@ uint32_t jump_addr;
 uint32_t write_count = 0;
 uint32_t crc_compare;
 uint32_t file_length = 0;
+uint32_t save_version, save_magic_number, save_just_updated;
+//uint32_t *just_updated = (uint32_t *)0x08020010;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -88,6 +91,7 @@ static void MPU_Config(void);
 int version;
 int software_version;
 int is_loaded = 0;
+int will_update = -1;
 uint32_t filelength = 0;
 uint32_t crc;
 
@@ -100,11 +104,13 @@ struct FlashHandle {
 void* OpenCallback(const char* fname, const char* mode, u8_t write);
 int ReadCallback(void* handle, void* buf, int bytes);
 int WriteCallback(void* handle, struct pbuf* p);
+int WriteCallback2(void* handle, struct pbuf* p);
 void CloseCallback(void* handle);
 void CloseCallbackReset(void* handle);
 void BootLoader();
 int is_firstwrite = 1;
 int is_newestver;
+int sent_version = 0;
 
 /* USER CODE END 0 */
 
@@ -146,6 +152,7 @@ int main(void)
   MX_USB_OTG_HS_USB_Init();
   MX_LWIP_Init();
   MX_CRC_Init();
+
   /* USER CODE BEGIN 2 */
   version = *(uint32_t *)0x08020000;
   printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
@@ -211,23 +218,75 @@ int main(void)
       }
   printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"); // 79 lines per window
   HAL_Delay(1000);
-//  printf("\n");
-//  printf("initial magic number : %d\n", *(uint32_t*)magic_number);
-//  printf("current software version : %d\n", *(uint32_t *)0x08020000);
-  if ((HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) && (*(uint32_t *)magic_number == 12345678)) { // reboot without uploading
-//	  printf("\nJumping to firmware area\n");
+
+  /* editted from here */
+
+  save_version = *(uint32_t *)0x08020000;
+  save_magic_number = *(uint32_t *)0x08020004;
+  save_just_updated = *(uint32_t *)0x08020008;
+
+//  printf("%d %d %d\n", save_version, save_magic_number, save_just_updated);
+
+
+  if(save_just_updated == 13579){
+
+	  HAL_FLASH_Unlock();
+	  FLASH_If_Init();
+	  uint32_t SectorError;
+	  FLASH_EraseInitTypeDef pEraseInit;
+	  pEraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
+	  pEraseInit.Sector = FLASH_SECTOR_1;
+	  pEraseInit.NbSectors = 1;
+	  pEraseInit.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+	  pEraseInit.Banks = FLASH_BANK_1;
+	  if (HAL_FLASHEx_Erase(&pEraseInit, &SectorError) != HAL_OK) {
+	  /* Error occurred while sector erase */
+		  printf("Error!\n");
+	  }
+	  HAL_FLASH_Lock();
+
+	  uint32_t save_validation_set[3] = {save_version, save_magic_number, 24680};
+
+	  FLASH_If_Init();
+	  HAL_FLASH_Unlock();
+	  if(FLASH_If_Write((uint32_t)0x08020000, save_validation_set, 3) != HAL_OK) printf("error!!!\n");
+	  HAL_FLASH_Lock();
+
 	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
 	  jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
-      JumpToApp = (pFunction) jump_addr;
+		JumpToApp = (pFunction) jump_addr;
 
 	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
 	  JumpToApp();
-  } else {
-//	  printf("loading bootloader\n");
-	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
-	  BootLoader(); // if block -> original code
-
   }
+ /* to here */
+
+  else{
+	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
+	  BootLoader();
+  }
+
+
+
+
+
+//  printf("\n");
+//  printf("initial magic number : %d\n", *(uint32_t*)magic_number);
+//  printf("current software version : %d\n", *(uint32_t *)0x08020000);
+//  if ((HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) && (*(uint32_t *)magic_number == 12345678)) { // reboot without uploading
+////	  printf("\nJumping to firmware area\n");
+//	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
+//	  jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
+//      JumpToApp = (pFunction) jump_addr;
+//
+//	  __set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
+//	  JumpToApp();
+//  } else {
+////	  printf("loading bootloader\n");
+//	  HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET);
+//	  BootLoader(); // if block -> original code
+//
+//  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -345,13 +404,43 @@ void* OpenCallback(const char* fname, const char* mode, u8_t write)
 
 int ReadCallback(void* handle, void* buf, int bytes)
 {
-	printf("Read\n");
+	uint32_t *xbuf = (uint32_t *)buf;
+//	printf("%d\n", sent_version);
+	if(sent_version == 0)	*xbuf = save_version;
+	else{
+		if(save_magic_number == 12345678)	*xbuf = 1;
+		else *xbuf = 0;
+	}
+	// or
+//	uint32_t xbuf[2] = (uint32_t *)buf;
+//	xbuf = {version, save_magic_number};
+//	printf("sending version info\n");
+	return 1;
+}
+
+int WriteCallback2(void* handle, struct pbuf* p){
+	will_update = *(uint32_t *)p->payload;
 	return 0;
 }
 
 int WriteCallback(void* handle, struct pbuf* p)
 {
+//	printf("write\n");
 	if(is_firstwrite){
+		printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+		printf("                                                                                                 __    __                  __              __                      __                  _______                                                                                        \n");
+		printf("                                                                                                /  |  /  |                /  |            /  |                    /  |                /       \\                                                                                       \n");
+		printf("                                                                                                $$ |  $$ |  ______    ____$$ |  ______   _$$ |_     ______        $$/  _______        $$$$$$$  | ______    ______    ______    ______    ______    _______  _______                   \n");
+		printf("                                                                                                $$ |  $$ | /      \\  /    $$ | /      \\ / $$   |   /      \\       /  |/       \\       $$ |__$$ |/      \\  /      \\  /      \\  /      \\  /      \\  /       |/       |                  \n");
+		printf("                                                                                                $$ |  $$ |/$$$$$$  |/$$$$$$$ | $$$$$$  |$$$$$$/   /$$$$$$  |      $$ |$$$$$$$  |      $$    $$//$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$$//$$$$$$$/                   \n");
+		printf("                                                                                                $$ |  $$ |$$ |  $$ |$$ |  $$ | /    $$ |  $$ | __ $$    $$ |      $$ |$$ |  $$ |      $$$$$$$/ $$ |  $$/ $$ |  $$ |$$ |  $$ |$$ |  $$/ $$    $$ |$$      \\$$      \\                   \n");
+		printf("                                                                                                $$ \\__$$ |$$ |__$$ |$$ \\__$$ |/$$$$$$$ |  $$ |/  |$$$$$$$$/       $$ |$$ |  $$ |      $$ |     $$ |      $$ \\__$$ |$$ \\__$$ |$$ |      $$$$$$$$/  $$$$$$  |$$$$$$  |       __  __  __ \n");
+		printf("                                                                                                $$    $$/ $$    $$/ $$    $$ |$$    $$ |  $$  $$/ $$       |      $$ |$$ |  $$ |      $$ |     $$ |      $$    $$/ $$    $$ |$$ |      $$       |/     $$//     $$/       /  |/  |/  |\n");
+		printf("                                                                                                 $$$$$$/  $$$$$$$/   $$$$$$$/  $$$$$$$/    $$$$/   $$$$$$$/       $$/ $$/   $$/       $$/      $$/        $$$$$$/   $$$$$$$ |$$/        $$$$$$$/ $$$$$$$/ $$$$$$$/        $$/ $$/ $$/ \n");
+		printf("                                                                                                          $$ |                                                                                                     /  \\__$$ |                                                         \n");
+		printf("                                                                                                          $$ |                                                                                                     $$    $$/                                                          \n");
+		printf("                                                                                                          $$/                                                                                                       $$$$$$/                                                           \n");
+		printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
 		software_version = *(uint32_t *)p->payload;
 //		printf("arrived software version : %d\n", software_version);
 		if(software_version == version){
@@ -375,7 +464,7 @@ int WriteCallback(void* handle, struct pbuf* p)
 		if(is_firstwrite){
 			crc_compare = *((uint32_t *)p->payload + 4);
 //			printf("First Communication Packet arrived\n");
-			printf("                                                                              #");
+//			printf("                                                                              #");
 //			HAL_Delay(30);
 		}
 		else{
@@ -384,7 +473,7 @@ int WriteCallback(void* handle, struct pbuf* p)
 			filelength = filelength + p->len;
 			if (res == FLASHIF_OK) {
 //				printf("done\n");
-				printf("#");
+//				printf("#");
 //				HAL_Delay(50);
 			} else {
 //				printf("failed\n");
@@ -409,6 +498,7 @@ void CloseCallback(void* handle)
 	struct FlashHandle* fh = (struct FlashHandle*)handle;
 	free(fh);
 //	printf("Close\n");
+	sent_version++;
 
 }
 
@@ -418,25 +508,60 @@ void CloseCallbackReset(void* handle)
 	free(fh);
 //	printf("Close\n");
 	is_loaded = 1;
+//	printf("close\n");
 }
 
 void BootLoader() {
-
-
+//	print_ip_settings(&gnetif.ip_addr.addr, &gnetif.netmask.addr, &gnetif.gw.addr);
+//	printf("Bootloader on.. checking version..\n");
 	printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-	printf("                                                                                                 __    __                  __              __                      __                  _______                                                                                        \n");
-	printf("                                                                                                /  |  /  |                /  |            /  |                    /  |                /       \\                                                                                       \n");
-	printf("                                                                                                $$ |  $$ |  ______    ____$$ |  ______   _$$ |_     ______        $$/  _______        $$$$$$$  | ______    ______    ______    ______    ______    _______  _______                   \n");
-	printf("                                                                                                $$ |  $$ | /      \\  /    $$ | /      \\ / $$   |   /      \\       /  |/       \\       $$ |__$$ |/      \\  /      \\  /      \\  /      \\  /      \\  /       |/       |                  \n");
-	printf("                                                                                                $$ |  $$ |/$$$$$$  |/$$$$$$$ | $$$$$$  |$$$$$$/   /$$$$$$  |      $$ |$$$$$$$  |      $$    $$//$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$  |/$$$$$$$//$$$$$$$/                   \n");
-	printf("                                                                                                $$ |  $$ |$$ |  $$ |$$ |  $$ | /    $$ |  $$ | __ $$    $$ |      $$ |$$ |  $$ |      $$$$$$$/ $$ |  $$/ $$ |  $$ |$$ |  $$ |$$ |  $$/ $$    $$ |$$      \\$$      \\                   \n");
-	printf("                                                                                                $$ \\__$$ |$$ |__$$ |$$ \\__$$ |/$$$$$$$ |  $$ |/  |$$$$$$$$/       $$ |$$ |  $$ |      $$ |     $$ |      $$ \\__$$ |$$ \\__$$ |$$ |      $$$$$$$$/  $$$$$$  |$$$$$$  |       __  __  __ \n");
-	printf("                                                                                                $$    $$/ $$    $$/ $$    $$ |$$    $$ |  $$  $$/ $$       |      $$ |$$ |  $$ |      $$ |     $$ |      $$    $$/ $$    $$ |$$ |      $$       |/     $$//     $$/       /  |/  |/  |\n");
-	printf("                                                                                                 $$$$$$/  $$$$$$$/   $$$$$$$/  $$$$$$$/    $$$$/   $$$$$$$/       $$/ $$/   $$/       $$/      $$/        $$$$$$/   $$$$$$$ |$$/        $$$$$$$/ $$$$$$$/ $$$$$$$/        $$/ $$/ $$/ \n");
-	printf("                                                                                                          $$ |                                                                                                     /  \\__$$ |                                                         \n");
-	printf("                                                                                                          $$ |                                                                                                     $$    $$/                                                          \n");
-	printf("                                                                                                          $$/                                                                                                       $$$$$$/                                                           \n");
+	printf("                                                                                                    __                                  __  __                            _______                         __      __                            __                           \n");
+	printf("                                                                                                   /  |                                /  |/  |                          /       \\                       /  |    /  |                          /  |                          \n");
+	printf("                                                                                                   $$ |        ______    ______    ____$$ |$$/  _______    ______        $$$$$$$  |  ______    ______   _$$ |_   $$ |  ______    ______    ____$$ |  ______    ______        \n");
+	printf("                                                                                                   $$ |       /      \\  /      \\  /    $$ |/  |/       \\  /      \\       $$ |__$$ | /      \\  /      \\ / $$   |  $$ | /      \\  /      \\  /    $$ | /      \\  /      \\       \n");
+	printf("                                                                                                   $$ |      /$$$$$$  | $$$$$$  |/$$$$$$$ |$$ |$$$$$$$  |/$$$$$$  |      $$    $$< /$$$$$$  |/$$$$$$  |$$$$$$/   $$ |/$$$$$$  | $$$$$$  |/$$$$$$$ |/$$$$$$  |/$$$$$$  |      \n");
+	printf("                                                                                                   $$ |      $$ |  $$ | /    $$ |$$ |  $$ |$$ |$$ |  $$ |$$ |  $$ |      $$$$$$$  |$$ |  $$ |$$ |  $$ |  $$ | __ $$ |$$ |  $$ | /    $$ |$$ |  $$ |$$    $$ |$$ |  $$/       \n");
+	printf("                                                                                                   $$ |_____ $$ \\__$$ |/$$$$$$$ |$$ \\__$$ |$$ |$$ |  $$ |$$ \\__$$ |      $$ |__$$ |$$ \\__$$ |$$ \\__$$ |  $$ |/  |$$ |$$ \\__$$ |/$$$$$$$ |$$ \\__$$ |$$$$$$$$/ $$ | __  __  __ \n");
+	printf("                                                                                                   $$       |$$    $$/ $$    $$ |$$    $$ |$$ |$$ |  $$ |$$    $$ |      $$    $$/ $$    $$/ $$    $$/   $$  $$/ $$ |$$    $$/ $$    $$ |$$    $$ |$$       |$$ |/  |/  |/  |\n");
+	printf("                                                                                                   $$$$$$$$/  $$$$$$/   $$$$$$$/  $$$$$$$/ $$/ $$/   $$/  $$$$$$$ |      $$$$$$$/   $$$$$$/   $$$$$$/     $$$$/  $$/  $$$$$$/   $$$$$$$/  $$$$$$$/  $$$$$$$/ $$/ $$/ $$/ $$/ \n");
+	printf("                                                                                                                                                         /  \\__$$ |                                                                                                          \n");
+	printf("                                                                                                                                                         $$    $$/                                                                                                           \n");
+	printf("                                                                                                                                                          $$$$$$/                                                                                                            \n");
 	printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+	struct tftp_context tftpctx1 = {
+		  OpenCallback,
+		  CloseCallback,
+		  ReadCallback,
+		  WriteCallback
+	};
+	tftp_init(&tftpctx1);
+	while(sent_version < 2){
+		MX_LWIP_Process();
+	}
+//	printf("tftp connection closed 1\n");
+	tftp_cleanup();
+
+	struct tftp_context tftpctx2 = {
+			OpenCallback,
+			CloseCallback,
+			ReadCallback,
+			WriteCallback2
+	};
+	tftp_init(&tftpctx2);
+	while(will_update == -1){
+		MX_LWIP_Process();
+	}
+	tftp_cleanup();
+	if(!will_update){
+//		printf("Already newest version!!\n");
+		HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
+		jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
+		JumpToApp = (pFunction) jump_addr;
+
+		__set_MSP(*(__IO uint32_t*) APP_FW_ADDR);
+		JumpToApp();
+	}
+
 
 	struct tftp_context tftpctx = {
 
@@ -457,7 +582,7 @@ void BootLoader() {
 	pEraseInit.NbSectors = 1;
 	pEraseInit.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 	pEraseInit.Banks = FLASH_BANK_1;
-	if (HAL_FLASHEx_Erase(&pEraseInit, &SectorError) != HAL_OK) {-
+	if (HAL_FLASHEx_Erase(&pEraseInit, &SectorError) != HAL_OK) {
 	  /* Error occurred while sector erase */
 	  printf("Error!\n");
 	}
@@ -472,7 +597,7 @@ void BootLoader() {
 	{
 	  MX_LWIP_Process();
 	}
-
+	tftp_cleanup();
 	/* crc check */
 
 	if(is_newestver){
@@ -482,15 +607,15 @@ void BootLoader() {
 //		printf("file length : %d\n", filelength);
 //		printf("crc value : %x\n", crc);
 //		printf("received crc value : %x\n", crc_compare);
-		uint32_t validation_set[2] = {software_version, 12345678};
+		uint32_t validation_set[3] = {software_version, 12345678, 13579};
 
 
 		if(crc == crc_compare){
 //			printf("\n! received valid data !\n");
 			FLASH_If_Init();
 			HAL_FLASH_Unlock();
-			FLASH_If_Init();
-			if(FLASH_If_Write((uint32_t)0x08020000, validation_set, 2) != HAL_OK) printf("error!!!\n");
+//			FLASH_If_Init();
+			if(FLASH_If_Write((uint32_t)0x08020000, validation_set, 3) != HAL_OK) printf("error!!!\n");
 			HAL_FLASH_Lock();
 //			printf("magic number updated to : %d\n", *(uint32_t *)magic_number);
 //			printf("software version updated to : %d\n", *(uint32_t *)0x08020000);
@@ -503,17 +628,31 @@ void BootLoader() {
 		}
 		else{
 			HAL_Delay(1000);
-			printf("\n! received broken data !\n");
+//			printf("\n! received broken data !\n");
+
+			printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+			printf(" _______                                 __                            __        _______                       __                                  _______               __                      __  __\n");
+			printf("/       \\                               /  |                          /  |      /       \\                     /  |                                /       \\             /  |                    /  |/  |\n");
+			printf("$$$$$$$  |  ______    _______   ______  $$/  __     __  ______    ____$$ |      $$$$$$$  |  ______    ______  $$ |   __   ______   _______        $$$$$$$  |  ______   _$$ |_     ______        $$ |$$ |\n");
+			printf("$$ |__$$ | /      \\  /       | /      \\ /  |/  \\   /  |/      \\  /    $$ |      $$ |__$$ | /      \\  /      \ $$ |  /  | /      \\ /       \\       $$ |  $$ | /      \\ / $$   |   /      \\       $$ |$$ |\n");
+			printf("$$    $$< /$$$$$$  |/$$$$$$$/ /$$$$$$  |$$ |$$  \\ /$$//$$$$$$  |/$$$$$$$ |      $$    $$< /$$$$$$  |/$$$$$$  |$$ |_/$$/ /$$$$$$  |$$$$$$$  |      $$ |  $$ | $$$$$$  |$$$$$$/    $$$$$$  |      $$ |$$ |\n");
+			printf("$$$$$$$  |$$    $$ |$$ |      $$    $$ |$$ | $$  /$$/ $$    $$ |$$ |  $$ |      $$$$$$$  |$$ |  $$/ $$ |  $$ |$$   $$<  $$    $$ |$$ |  $$ |      $$ |  $$ | /    $$ |  $$ | __  /    $$ |      $$/ $$/ \n");
+			printf("$$ |  $$ |$$$$$$$$/ $$ \\_____ $$$$$$$$/ $$ |  $$ $$/  $$$$$$$$/ $$ \\__$$ |      $$ |__$$ |$$ |      $$ \\__$$ |$$$$$$  \\ $$$$$$$$/ $$ |  $$ |      $$ |__$$ |/$$$$$$$ |  $$ |/  |/$$$$$$$ |       __  __ \n");
+			printf("$$ |  $$ |$$       |$$       |$$       |$$ |   $$$/   $$       |$$    $$ |      $$    $$/ $$ |      $$    $$/ $$ | $$  |$$       |$$ |  $$ |      $$    $$/ $$    $$ |  $$  $$/ $$    $$ |      /  |/  |\n");
+			printf("$$/   $$/  $$$$$$$/  $$$$$$$/  $$$$$$$/ $$/     $/     $$$$$$$/  $$$$$$$/       $$$$$$$/  $$/        $$$$$$/  $$/   $$/  $$$$$$$/ $$/   $$/       $$$$$$$/   $$$$$$$/    $$$$/   $$$$$$$/       $$/ $$/ \n");
+			printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+
 		}
 		HAL_NVIC_SystemReset();
 	}
 	else{
-		uint32_t validation_set[2] = {software_version, 12345678};
+		uint32_t validation_set[3] = {version, 12345678, 13579};
 		FLASH_If_Init();
 		HAL_FLASH_Unlock();
-		FLASH_If_Init();
-		if(FLASH_If_Write((uint32_t)0x08020000, validation_set, 2) != HAL_OK) printf("error!!!\n");
+//		FLASH_If_Init();
+		if(FLASH_If_Write((uint32_t)0x08020000, validation_set, 3) != HAL_OK) printf("error!!!\n");
 		HAL_FLASH_Lock();
+
 		HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET);
 		jump_addr = *(__IO uint32_t*) (APP_FW_ADDR + 4);
 		JumpToApp = (pFunction) jump_addr;
