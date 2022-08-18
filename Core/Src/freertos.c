@@ -26,7 +26,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "imu.h"
+//#include "imu.h"
+#include "mpu_driver.h"
+#include "bno055_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,6 +38,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+float calculation_time;
+float calculation_time2;
+float count = 0;
+float inc;
+int dir_flag = 1;
+int first_flag = 1;
+int button_flag = 0;
+float motor_angle = 0;
+extern float t_roll;
 
 /* USER CODE END PD */
 
@@ -122,7 +134,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
-  HW_I2C_InitChannel(&i2c_ch1, &hi2c1, I2C1BinSemHandle);
+//  HW_I2C_InitChannel(&i2c_ch1, &hi2c1, I2C1BinSemHandle);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -188,7 +200,8 @@ void StartUART_Task(void *argument)
     /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+//    osDelay(1);
+	  Serial_Send();
   }
   /* USER CODE END StartUART_Task */
 }
@@ -224,16 +237,19 @@ void StartLED_Task(void *argument)
 void StartIMU_Task(void *argument)
 {
   /* USER CODE BEGIN StartIMU_Task */
-  IMU_SetI2C_Channel(&i2c_ch1);
-  IMU_WaitForReady();
-  IMU_Configure();
+//  IMU_SetI2C_Channel(&i2c_ch1);
+//  IMU_WaitForReady();
+//  IMU_Configure();
+	BNO_Init();
 
   /* Infinite loop */
   for(;;)
   {
-    IMU_ReadData();
-    IMU_ReadBuffData();
-    osDelay(1);
+//    IMU_ReadData();
+//    IMU_ReadBuffData();
+//	uint32_t lastTime;
+	BNO_Run();
+//	osDelayUntil(&lastTime, 1000);
   }
   /* USER CODE END StartIMU_Task */
 }

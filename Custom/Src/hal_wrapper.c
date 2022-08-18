@@ -47,16 +47,16 @@ void HW_I2C_RegisterTx(HW_I2C_Interface* i2c_ch, uint16_t dev_addr, uint16_t reg
 }
 
 
-void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-    if(hi2c == i2c_ch1.hal_handle){
-        osSemaphoreRelease(i2c_ch1.sem);
-    }
-}
-
-void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-    if(hi2c == i2c_ch1.hal_handle){
-        osSemaphoreRelease(i2c_ch1.sem);
-    }
-}
+//void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//    if(hi2c == i2c_ch1.hal_handle){
+//        osSemaphoreRelease(i2c_ch1.sem);
+//    }
+//}
+//
+//void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//    if(hi2c == i2c_ch1.hal_handle){
+//        osSemaphoreRelease(i2c_ch1.sem);
+//    }
+//}
